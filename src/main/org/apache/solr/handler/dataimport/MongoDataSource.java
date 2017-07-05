@@ -3,6 +3,8 @@ package org.apache.solr.handler.dataimport;
 
 import com.mongodb.*;
 import com.mongodb.util.JSON;
+// import com.sun.xml.internal.bind.v2.runtime.unmarshaller.XsiNilLoader.Array;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +34,8 @@ public class MongoDataSource extends DataSource<Iterator<Map<String, Object>>>{
     private Mongo        mongoConnection;
 
     private DBCursor mongoCursor;
+// this makes it not reentrant, 
+    Map<String, Object> result ;
 
     @Override
     public void init(Context context, Properties initProps) {
@@ -111,45 +115,99 @@ public class MongoDataSource extends DataSource<Iterator<Map<String, Object>>>{
             return rSetIterator;
         }
 
+      /**  the original one does not expect to have complex objects
+      * an object has fields which can be: single values, other objects and arrays
+      * And the current implementations seems to deal only with two levels of objects.
+      * So the we should do recursive calls that deals with a single level
+      * It can be an array, a single object or a complex object
+      * If it is a single object adds it to the Map, 
+      * If it is an object calls for each member adding the name to the key
+      * If it is an array
+      * the most problematic ones are arrays that need to be imported in solr as multivalued, and as result is a Map, does not allow duplicated names.
+      * one way to solve it is to detect duplicated keys and when we have a duplicated key we generate a new key with a number at the end like __1 __2.... so 
+      * 
+      *
+      */
+        
+        
         private Map<String, Object> getARow(){
             DBObject mongoObject = getMongoCursor().next();
 
-            Map<String, Object> result   = new HashMap<String, Object>();
+            result   = new HashMap<String, Object>();
             Set<String>         keys     = mongoObject.keySet();
             Iterator<String>    iterator = keys.iterator();
 
             while ( iterator.hasNext() ) {
                 String key = iterator.next();
                 Object innerObject = mongoObject.get(key);
-
+                // key="key_"+key;
                 if(innerObject instanceof BasicDBObject) {
-                    //when innerObject is a nested object, for example
-                    //{
-                    //  "postId": "string",
-                    //  "categoryPath": "string",
-                    //  "title": "string",
-                    //  "price": {
-                    //    "value": 0,
-                    //    "currency": "USD",
-                    //    "currencySymbol": "$"
-                    //  }
-                    //}
-                    // the innerObj "price" is actually a nested object, which is not supported by Solr directly, we need to flatten it to key/value pair.
-                    //a simple way to add an underscore, then use the same naming convention in Solr's schema file, so the above structure will become
-                    //price_value=0, price_currency=USD, price_currencySymbol=$
-                    BasicDBObject innerObj = (BasicDBObject)innerObject;
-                    for(String subKey : innerObj.keySet()){
-                        result.put(key+"_"+subKey, innerObj.get(subKey));
-                    }
+                	subOjbect(key,(BasicDBObject)innerObject);
+                }else if (innerObject instanceof ArrayList<?>) {
+                	// then is an Array.class...
+                   subOjbectArray(key,(ArrayList<Object>)innerObject);
                 }else { //innerObject is String or other type, just add it
-                    result.put(key, innerObject);
+                    addKey(key, innerObject);
                 }
             }
 
             return result;
         }
 
-        private boolean hasnext() {
+        /**
+         * Adds a key, object pair to result.
+         * If result already contains the key it adds __number at the end of the key
+         * this means that array will become key, key__0, key__1,key__2....
+         * @param key
+         * @param innerObject
+         */
+        
+        private void addKey(String key, Object innerObject) {
+        	if (result.containsKey(key)) {
+        		int counter=0;
+        	while (result.containsKey(key+"__"+counter)) counter++;
+        		key+="__"+counter;
+        	}
+        	result.put( key,  innerObject);
+        	
+    	}
+
+        /**
+         *  when the suboject is an array will ckech the array members and perform the call or recursive call on each object
+         * @param string
+         * @param innerObject
+         */
+        private void subOjbectArray(String key, ArrayList<Object> object) {
+
+            for(Object innerObject: object){
+                if(innerObject instanceof BasicDBObject) {
+                	subOjbect(key,(BasicDBObject)innerObject);
+                }else if (innerObject instanceof ArrayList<?>) {
+                	// then is an Array.class...
+                   subOjbectArray(key,(ArrayList<Object>)innerObject);
+                }else { //innerObject is String or other type, just add it
+                    addKey(key, innerObject);
+                }
+
+            }      
+        }
+
+		private void subOjbect(String key, BasicDBObject object) {
+
+            for(String subKey : object.keySet()){
+            	 Object innerObject=object.get(subKey);
+                 if(innerObject instanceof BasicDBObject) {
+                 	subOjbect(key+"_"+subKey,(BasicDBObject)innerObject);
+                 }else if (innerObject instanceof ArrayList<?>) {
+                 	// then is an Array.class...
+                    subOjbectArray(key+"_"+subKey,(ArrayList<Object>)innerObject);
+                 }else { //innerObject is String or other type, just add it
+                     addKey(key+"_"+subKey, innerObject);
+                 }
+             }
+	}
+
+		private boolean hasnext() {
             if (MongoCursor == null)
                 return false;
             try {
@@ -182,7 +240,8 @@ public class MongoDataSource extends DataSource<Iterator<Map<String, Object>>>{
         return this.mongoCursor;
     }
 
-    @Override
+
+	@Override
     public void close() {
         if( this.mongoCursor != null ){
             this.mongoCursor.close();

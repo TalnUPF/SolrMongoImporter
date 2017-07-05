@@ -11,12 +11,11 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Timer;
 import java.util.TimerTask;
-
 import org.apache.solr.core.SolrResourceLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import solr.search.util.AppProperties;
+//import solr.search.util.AppProperties;
 
 /**
  * Credit to
@@ -182,7 +181,8 @@ public class HTTPPostScheduler extends TimerTask {
          */
         private void initializeDataimportFile() {
         	SolrResourceLoader loader = new SolrResourceLoader();
-       		String solrHome = loader.getInstanceDir();
+       		@SuppressWarnings("deprecation")
+			String solrHome = loader.getInstanceDir();
         		
         		for(String coreName : cores.split(",")) {
 	        		File dataimportProp = new File(solrHome+"/" + coreName+"/conf/dataimport.properties");

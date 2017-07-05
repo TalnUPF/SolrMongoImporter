@@ -32,6 +32,8 @@ then use the same naming convention in Solr's schema file, so the above structur
   price_currencySymbol=$
 For details, refer to MongoDataSource.java
 ```
+* when there are arrays there are many fields with the same name but ending with __0 __1 __2 ... despite the level the array is or even if there are several arrays  in the object embedeness
+
 
 ## Classes
 
@@ -97,6 +99,9 @@ db.sellposts.find()
 ```
 
 #### Step 3. Declare Solr fields in schema.xml
+
+* the definition of the dynamic field is used when there are arrays and there are several fields with the same key but ending with __0 __1... (the first one does not include any numbering) 
+
 ```xml
     <!-- Sample Solr schema.xml -->
   <fields>    
@@ -106,7 +111,13 @@ db.sellposts.find()
     <field name="price"  type="double" indexed="true" stored="true" />
     <field name="price_currency"  type="string" indexed="true" stored="true" />
     <field name="price_currencySymbol"  type="string" indexed="false" stored="true" />
-  </fields>
+    
+    <dynamicField name="entities_hashtags_text*" type="ignored" />
+    <field indexed="true" multiValued="true" name="hashtags" required="false" stored="true" type="lowercase"/>
+    <copyField dest="hashtags" source="entities_hashtags_text*"/>
+ 
+
+ </fields>
 ```
 
 #### Step 4. Declare dih-config.xml in solrconfig.xml
@@ -123,6 +134,9 @@ db.sellposts.find()
 ```
 
 #### Step 5. Define the dih-config.xml under your Solr collection/conf folder (where schema.xml, solrconfig.xml is stored) 
+
+* name is very important you can have things like this...
+
 ```xml
 <?xml version="1.0" encoding="utf-8" ?>
 <dataConfig>
@@ -147,6 +161,28 @@ db.sellposts.find()
                  -->
             <field column="_id" name="postId"/>
             <field column="price_value" name="price"/>
+
+             <field column="entities_hashtags_text"     name="hashtags"  />
+             <!-- you can avoid this part -->
+             <field column="entities_hashtags_text__0"     name="hashtags"  />
+             <field column="entities_hashtags_text__1"     name="hashtags"  />
+             <field column="entities_hashtags_text__2"     name="hashtags"  />
+             <field column="entities_hashtags_text__3"     name="hashtags"  />
+             <field column="entities_hashtags_text__4"     name="hashtags"  />
+             <field column="entities_hashtags_text__5"     name="hashtags"  />
+             <field column="entities_hashtags_text__6"     name="hashtags"  />
+             <field column="entities_hashtags_text__7"     name="hashtags"  />
+             <field column="entities_hashtags_text__8"     name="hashtags"  />
+             <field column="entities_hashtags_text__9"     name="hashtags"  />
+             <field column="entities_hashtags_text__10"     name="hashtags"  />
+             <field column="entities_hashtags_text__11"     name="hashtags"  />
+             <field column="entities_hashtags_text__12"     name="hashtags"  />
+             <field column="entities_hashtags_text__13"     name="hashtags"  />
+             <field column="entities_hashtags_text__14"     name="hashtags"  />
+             <field column="entities_hashtags_text__15"     name="hashtags"  />
+             <field column="entities_hashtags_text__16"     name="hashtags"  />
+
+
         </entity>
     </document>
 </dataConfig>
